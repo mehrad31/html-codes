@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gravity Frenzy X</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #legendaryPanel {
+      position: fixed;
+      top: 60px;
+      left: 20px;
+      width: 250px;
+      background: rgba(30, 30, 30, 0.6);
+      color: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 15px #0ff;
+      z-index: 100;
+      transition: all 0.3s ease;
+    }
+    #legendaryPanel h3 {
+      margin-top: 0;
+      font-size: 18px;
+      text-align: center;
+      color: #0ff;
+    }
+    .legend-option {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-option input[type="range"],
+    .legend-option input[type="color"] {
+      flex: 1;
+    }
+    #legendToggle {
+      position: fixed;
+      top: 10px;
+      left: 20px;
+      background: #111;
+      color: #0ff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 101;
+      font-weight: bold;
+      box-shadow: 0 0 10px #0ff;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<button id="legendToggle">🧙‍♂️ menu</button>
+<div id="legendaryPanel">
+  <h3>🎮 game setting</h3>
+  <div class="legend-option"><span>🌟 counts</span><input type="range" id="legendStars" min="50" max="500" value="200"></div>
+  <div class="legend-option"><span>⚡speed</span><input type="range" id="legendSpeed" min="0.5" max="3" step="0.1" value="1"></div>
+  <div class="legend-option"><span>🌀gravity</span><input type="range" id="legendGravity" min="1000" max="10000" step="500" value="5000"></div>
+  <div class="legend-option"><span>🎨color</span><input type="color" id="legendColor" value="#00ffff"></div>
+  <div class="legend-option">
+    <button onclick="addBlackHole()">➕ blackhole</button>
+    <button onclick="removeBlackHole()">➖</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gravity = 5000;
+let speedMultiplier = 1;
+let bhColor = "#00ffff";
+
+let centers = [
+  { x: canvas.width/2, y: canvas.height/2, mass: gravity, color: bhColor, dragging: false }
+];
+
+let particles = [];
+
+function generateParticles(count) {
+  particles = [];
+  for (let i = 0; i < count; i++) {
+    let angle = Math.random() * Math.PI * 2;
+    let radius = 100 + Math.random()*300;
+    let center = centers[Math.floor(Math.random()*centers.length)];
+    let speed = Math.sqrt(center.mass / radius) * speedMultiplier;
+    particles.push({
+      x: center.x + Math.cos(angle)*radius,
+      y: center.y + Math.sin(angle)*radius,
+      vx: -Math.sin(angle)*speed,
+      vy: Math.cos(angle)*speed,
+      r: 2,
+      color: `hsl(${Math.random()*360}, 100%, 70%)`
+    });
+  }
+}
+
+generateParticles(200);
+
+function draw() {
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let c of centers) {
+    let gradient = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 30);
+    gradient.addColorStop(0, c.color);
+    gradient.addColorStop(1, "transparent");
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 30, 0, Math.PI*2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+  }
+
+  for (let p of particles) {
+    for (let c of centers) {
+      let dx = c.x - p.x;
+      let dy = c.y - p.y;
+      let distSq = dx*dx + dy*dy;
+      let dist = Math.sqrt(distSq);
+      let force = c.mass / (distSq + 100);
+      let ax = force * dx / dist;
+      let ay = force * dy / dist;
+      p.vx += ax;
+      p.vy += ay;
+    }
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+
+
+document.getElementById("legendStars").addEventListener("input", e => {
+  generateParticles(+e.target.value);
+});
+document.getElementById("legendSpeed").addEventListener("input", e => {
+  speedMultiplier = parseFloat(e.target.value);
+  generateParticles(particles.length);
+});
+document.getElementById("legendGravity").addEventListener("input", e => {
+  gravity = parseInt(e.target.value);
+  for (let c of centers) c.mass = gravity;
+});
+document.getElementById("legendColor").addEventListener("input", e => {
+  bhColor = e.target.value;
+  for (let c of centers) c.color = bhColor;
+});
+
+function addBlackHole() {
+  centers.push({
+    x: Math.random()*canvas.width,
+    y: Math.random()*canvas.height,
+    mass: gravity,
+    color: bhColor,
+    dragging: false
+  });
+}
+function removeBlackHole() {
+  if (centers.length > 1) centers.pop();
+}
+
+
+canvas.addEventListener("mousedown", e => {
+  let x = e.clientX;
+  let y = e.clientY;
+  for (let c of centers) {
+    let dx = x - c.x;
+    let dy = y - c.y;
+    if (Math.sqrt(dx*dx + dy*dy) < 40) c.dragging = true;
+  }
+});
+canvas.addEventListener("mouseup", () => {
+  for (let c of centers) c.dragging = false;
+});
+canvas.addEventListener("mousemove", e => {
+  for (let c of centers) {
+    if (c.dragging) {
+      c.x = e.clientX;
+      c.y = e.clientY;
+    }
+  }
+});
+
+
+const panel = document.getElementById("legendaryPanel");
+const toggle = document.getElementById("legendToggle");
+let visible = true;
+toggle.addEventListener("click", () => {
+  visible = !visible;
+  panel.style.display = visible ? "block" : "none";
+});
+</script>
+</body>
+</html>
